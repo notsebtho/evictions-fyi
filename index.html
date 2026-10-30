@@ -1,0 +1,728 @@
+<!doctype html><html><head><meta charset=utf-8><title>Hideout Restock Planner</title><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. Header with CSV loader, summary strip, three tabs. Dark by default; the header toggle switches to light. */
+:root{
+  --bg:#2a2a2a; --panel:#333333; --sunk:#3b3b3b; --line:#484848; --fg:#ececec; --muted:#a6a6a6;
+  --accent:#8ab4f0; --accent-fg:#1c1c1c; --need:#f0a35e; --need-bg:#4a3626; --ok:#7fcf8c; --done-bg:#3a3346; --done-line:#7d6aa3;
+  --t4:#6ea6e8; --t5:#ec6d69; --t6:#f09a45; --t7:#e3c440; --t8:#d6d2c8;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+:root.light{
+  --bg:#f2f2f2; --panel:#ffffff; --sunk:#e8e8e8; --line:#d4d4d4; --fg:#1f1f1f; --muted:#616161;
+  --accent:#2f62a8; --done-bg:#f1ecf8; --done-line:#9b86c4; --accent-fg:#ffffff; --need:#b4540f; --need-bg:#fbeadb; --ok:#2f7d4a;
+  --t4:#2f6fb5; --t5:#b8322f; --t6:#cc6b12; --t7:#b08d00; --t8:#6d6a62;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:30px;line-height:1.05}
+h2{font-size:20px}
+h3{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.muted{color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.snap{font-size:13px;color:var(--muted)}
+.snap b{color:var(--fg);font-weight:600}
+.drop{border:1.5px dashed var(--line);border-radius:10px;background:var(--panel);padding:14px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.drop.over{border-color:var(--accent);background:var(--sunk)}
+.drop p{margin:0;flex:1 1 260px;min-width:0}
+button,.btn{font:600 13px var(--body);border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 12px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.stat .v{font:600 26px var(--mono);font-variant-numeric:tabular-nums}
+.stat .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.stat.hot .v{color:var(--need)}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{white-space:nowrap;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;font:600 17px var(--display);letter-spacing:.03em;padding:8px 14px;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar input[type=search]{flex:1 1 200px;min-width:0}
+input,select{font:14px var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+.chip{font:500 12px var(--body);border-radius:999px;padding:4px 10px}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--sunk)}
+tr.grp td{background:var(--sunk);font:700 15px var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:10px}
+td.c,th.c{text-align:center}
+td.r,th.r{text-align:right}
+.tier{display:inline-block;font:700 12px var(--mono);padding:1px 6px;border-radius:4px;color:#fff;min-width:28px;text-align:center}
+.t4{background:var(--t4)}.t5{background:var(--t5)}.t6{background:var(--t6)}.t7{background:var(--t7);color:#1a1a1a}.t8{background:var(--t8);color:#1a1a1a}
+.cell{font-family:var(--mono);font-variant-numeric:tabular-nums;line-height:1.15}
+.cell .n{font-size:16px;font-weight:600;color:var(--need)}
+.cell .h{font-size:11px;color:var(--muted)}
+.cell.zero .n{color:var(--ok);font-weight:500}
+td.needc{background:var(--need-bg)}
+.badge{font:600 11px var(--body);text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
+.badge.haul{border-color:var(--need);color:var(--need)}
+.item small{display:block;color:var(--muted);font-size:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.grid2>*{min-width:0}
+.sec{display:grid;gap:10px}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+details.br{border-bottom:1px solid var(--line)}
+details.br>summary{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;cursor:pointer;list-style:none}
+details.br>summary::-webkit-details-marker{display:none}
+details.br>summary .name{flex:1 1 180px;font-weight:600;min-width:0}
+details.br[open]>summary{background:var(--sunk)}
+.tin{display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start}
+#defIn label{display:grid;gap:4px;justify-items:center;align-content:start}
+.tin input{width:52px;text-align:center;font-family:var(--mono);padding:4px 2px}
+.tin input::placeholder{color:var(--muted);opacity:.7}
+.irow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 12px 6px 28px;border-top:1px dashed var(--line)}
+.irow .name{flex:1 1 180px;min-width:0}
+.legend{font-size:12px;color:var(--muted)}
+.cfilters{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end}
+.cfilters label{display:grid;gap:4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.bring{display:grid;gap:10px;padding:14px 16px}
+.bring .mrow{display:flex;flex-wrap:wrap;gap:8px}
+.mchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--sunk);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mchip b{font-size:15px}
+.mgrid{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center}
+.mname{font-weight:600}
+.arts summary{cursor:pointer;color:var(--muted)}
+.arts table{margin-top:8px}
+.arts td{padding:4px 8px;white-space:normal}
+.mchip .k{font-family:var(--body);font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:7px 14px;background:var(--panel);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.wl td{padding:8px 12px;vertical-align:middle}
+.wl tr.tierh td{background:var(--sunk);padding:7px 12px;font-size:13px;color:var(--muted)}
+.wl tr.tierh b{color:var(--fg);font-weight:600}
+.wl tr.sth td{font:700 16px var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding-top:14px;border-bottom:1px solid var(--line)}
+.wl .left{font:600 18px var(--mono);font-variant-numeric:tabular-nums;color:var(--need);text-align:right;width:70px}
+.wl tr.fin .left{color:var(--ok);font-weight:500}
+.wl tr.fin td.item{color:var(--muted)}
+.wl .stock{font:12px var(--mono);color:var(--muted);text-align:right;width:110px}
+.wl th.left,.wl th.stock{font:600 12px var(--body);color:var(--muted)}
+.step{display:inline-flex;align-items:center;border:1px solid var(--done-line);border-radius:8px;background:var(--done-bg);overflow:hidden}
+.step button{border:0;border-radius:0;background:none;width:34px;height:34px;padding:0;font:600 18px var(--mono);color:var(--fg)}
+.step button:hover{background:var(--done-line)}
+.step input{width:52px;height:34px;border:0;border-radius:0;background:none;text-align:center;font:600 15px var(--mono);padding:0}
+.wl td.log{width:140px}
+.wl.byitem td{padding:7px 8px}
+.wl.byitem th.tcol{min-width:150px}
+.wl.byitem .sub{font:400 11px var(--body);text-transform:none;letter-spacing:0;color:var(--muted);margin-top:3px}
+.wl tr.brh td{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:12px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.icell{white-space:nowrap}
+.icell .left{display:inline-block;width:34px;text-align:right;margin-right:8px;font:600 17px var(--mono);color:var(--need);vertical-align:middle}
+.icell .left.zero{color:var(--ok);font-weight:500}
+.step.sm button{width:28px;height:30px;font-size:16px}
+.step.sm input{width:38px;height:30px;font-size:14px}
+@media (max-width:560px){.wl td{padding:8px 6px}.wl .stock{display:none}.step button{width:30px}.step input{width:40px}.wl td.log{width:auto}}
+.banner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;border:1px solid var(--need);border-radius:10px;padding:10px 14px;background:var(--need-bg)}
+.banner span{flex:1 1 260px;min-width:0}
+.cats{display:flex;flex-wrap:wrap;gap:6px}
+.tt{width:100%}
+.tt td{padding:5px 10px;vertical-align:middle}
+.tt th.c,.tt td.c{width:64px;text-align:center}
+.tt input{width:56px;text-align:center;font-family:var(--mono);padding:4px 2px}
+.tt input::placeholder{color:var(--muted);opacity:.75}
+.tt input.set{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:600}
+.tt input:disabled{background:var(--sunk);border-style:dashed}
+.tt tr.lvl-cat td{background:var(--sunk);font-weight:600}
+.tt tr.lvl-sub td{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding-top:12px;border-bottom:0}
+.tt tr.lvl-br td:first-child{font-weight:600}
+.tt tr.lvl-item td:first-child{padding-left:38px}
+.tog{border:0;background:none;padding:2px 6px;margin-right:4px;font:600 13px var(--mono);color:var(--muted)}
+.clr{border:0;background:none;color:var(--muted);padding:2px 6px;font-size:16px;line-height:1}
+.clr:hover{color:var(--need)}
+.catsec{display:grid;gap:8px}
+@media (max-width:560px){.tt input{width:42px;padding:4px 0}.tt th.c,.tt td.c{width:46px;padding-left:3px;padding-right:3px}.tt tr.lvl-item td:first-child{padding-left:22px}.catsec h2 small{display:block;margin:2px 0 0}}
+.tt td:first-child{white-space:normal;min-width:120px}
+.catsec h2 small{font:400 13px var(--body);color:var(--muted);margin-left:8px}
+.save{font-size:12px;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);max-width:75ch}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center}
+@media (max-width:560px){h1{font-size:24px}.stat .v{font-size:22px}}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Hideout Restock Planner</h1>
+      <div class="snap" id="snapInfo">No market export loaded yet.</div>
+    </div>
+    <div class="toolbar"><span class="save" id="saveState"></span><button id="themeBtn" aria-pressed="false">Light mode</button></div>
+  </header>
+
+  <div class="drop" id="drop">
+    <p><b>Load a market export.</b> <span class="muted">Drop the <span class="num">MarketOrders_*.csv</span> file here or choose it. Everyone who opens this page sees the latest one.</span></p>
+    <input type="file" id="file" accept=".csv,text/csv" hidden>
+    <button class="primary" id="pick">Choose CSV</button>
+  </div>
+
+  <div id="newExportBanner" class="banner" hidden><span id="newExportText"></span><button class="primary" id="newClear">Clear log</button><button id="newKeep">Keep it</button></div>
+
+  <div class="stats" id="stats"></div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-short" aria-selected="true">What to stock</button>
+    <button role="tab" id="tab-craft" aria-selected="false">Craft &amp; haul</button>
+    <button role="tab" id="tab-mats" aria-selected="false">Materials to craft it</button>
+    <button role="tab" id="tab-targets" aria-selected="false">Targets</button>
+  </nav>
+
+  <div class="toolbar" id="filters">
+    <input type="search" id="q" placeholder="Search items, e.g. stew, bow, horse">
+    <span id="stationChips" class="toolbar"></span>
+  </div>
+
+  <section id="view-short" class="sec">
+    <div class="toolbar">
+      <label><input type="checkbox" id="showAll"> Show fully stocked items</label>
+      <span style="flex:1"></span>
+      <button id="copyShort">Copy list</button>
+    </div>
+    <div class="legend">The big number in each cell is how many to add, with <span class="num">listed / target</span> under it. Gear counts at its item-power tier, so a 4.2 or 5.1 counts as T6. Food, potions and mounts count at their base tier. A dash means the item doesn't come in that tier. <span class="badge haul">Haul in</span> items aren't crafted at the hideout, so bring them in.</div>
+    <div class="panel scroll"><table id="shortTbl"></table></div>
+    <details id="unmatchedBox" class="panel" hidden><summary style="padding:10px 12px;cursor:pointer">Listings the planner doesn't track <span class="muted" id="unmatchedCount"></span></summary><div class="scroll"><table id="unmatchedTbl"></table></div></details>
+  </section>
+
+  <section id="view-craft" class="sec" hidden>
+    <div class="cfilters">
+      <div class="seg" role="group" aria-label="Session type"><button id="mCraft" aria-pressed="true">Crafting</button><button id="mHaul" aria-pressed="false">Hauling in</button></div>
+      <label data-craftonly>Station<select id="cStation"></select></label>
+      <label data-craftonly>Artifact<select id="cArt"><option value="any">Any</option><option value="no">No artifact</option><option value="yes">Needs artifact</option></select></label>
+      <label data-craftonly>Materials<select id="cRes"></select></label>
+      <label data-haulonly hidden>Type<select id="hType"></select></label>
+      <div class="seg" role="group" aria-label="Layout"><button id="vItem" aria-pressed="true">By item</button><button id="vTier" aria-pressed="false">By tier</button></div>
+      <span style="flex:1"></span>
+      <button id="copyCraft">Copy list</button>
+      <button id="clearDone">Clear log</button>
+    </div>
+    <div id="clearConfirm" class="banner" hidden><span>Clear every crafted and hauled count for everyone? Do this after loading a new export, once those items are listed on the market.</span><button class="primary" id="clearYes">Clear log</button><button id="clearNo">Keep</button></div>
+    <div class="panel bring" id="bring"></div>
+    <div class="panel scroll"><table id="craftTbl" class="wl"></table></div>
+  </section>
+
+  <section id="view-mats" class="sec" hidden>
+    <div class="toolbar"><span class="note">Refined materials to craft everything that's short in the current view, haul-in items excluded. Tools use flat tiers (a T6 tool takes 6.0 materials). Everything else uses the craft tiers on the Targets tab.</span><span style="flex:1"></span><button id="copyMats">Copy shopping list</button></div>
+    <div class="panel scroll"><table id="matTbl"></table></div>
+    <h3>Artifacts</h3>
+    <div class="panel scroll"><table id="artTbl"></table></div>
+    <h3>By station</h3>
+    <div class="panel scroll"><table id="stationTbl"></table></div>
+  </section>
+
+  <section id="view-targets" class="sec" hidden>
+    <p class="note">Set how many of each item you want listed per tier. A group's number applies to its branches, and a branch's number applies to its items. Faded numbers come from the row above. Outlined numbers were set on that row. Clear a box or press × to go back to the inherited number. Changes save as you type.</p>
+    <div class="grid2">
+      <div class="panel" style="padding:14px 16px;display:grid;gap:12px;align-content:start">
+        <h2>Default target per tier</h2>
+        <div class="tin" id="defIn"></div>
+        <p class="note" style="margin:0">Used by any group that doesn't set its own number.</p>
+      </div>
+      <div class="panel" style="padding:14px 16px;display:grid;gap:12px;align-content:start">
+        <h2>Crafting plan</h2>
+        <div class="kv" id="craftIn"></div>
+        <div class="kv"><label for="rrr">Resource return %</label><input id="rrr" type="number" min="0" max="60" step="0.1" style="width:90px"></div>
+      </div>
+    </div>
+    <div class="toolbar"><span style="flex:1"></span><button id="expandAll">Expand all</button><button id="collapseAll">Collapse all</button><button id="resetOv">Reset to recommended</button></div>
+    <div id="resetConfirm" class="toolbar" hidden><span class="note">Replace every target and craft setting with the recommended defaults?</span><button class="primary" id="resetYes">Reset</button><button id="resetNo">Keep</button></div>
+    <div id="brList" class="sec"></div>
+  </section>
+</div>
+
+<script>
+const ITEMS = [{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Arcane Staff","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Astral Staff","a":"Startouched Crystal","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Enigmatic Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Evensong","a":"Hypnotic Harmonic Ring","m":[0,0,12,20],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Great Arcane Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Malevolent Locus","a":"Possessed Catalyst","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Occult Staff","a":"Occult Orb","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Arcane Staffs","n":"Witchwork Staff","a":"Lost Arcane Crystal","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Battleaxe","a":"","m":[0,0,16,8],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Bear Paws","a":"Keeper Axeheads","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Carrioncaller","a":"Morgana Halberd Head","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Crystal Reaper","a":"Edged Crystal","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Greataxe","a":"","m":[0,0,20,12],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Halberd","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Infernal Scythe","a":"Hellish Sicklehead","m":[0,0,20,12],"x":"1111"},{"s":"Journeyman Warrior","b":"Axes","n":"Realmbreaker","a":"Avalonian Battle Memoir","m":[0,0,12,20],"x":"1111","av":1},{"s":"Toolmaker","b":"Bags","n":"Bag","a":"","m":[8,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Bow","a":"","m":[0,0,0,32],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Bow of Badon","a":"Carved Bone","m":[0,0,0,32],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Longbow","a":"","m":[0,0,0,32],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Mistpiercer","a":"Immaculately Crafted Riser","m":[0,0,0,32],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Bows","n":"Wailing Bow","a":"Demonic Arrowheads","m":[0,0,0,32],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Warbow","a":"","m":[0,0,0,32],"x":"1111"},{"s":"Journeyman Hunter","b":"Bows","n":"Whispering Bow","a":"Ghastly Arrows","m":[0,0,0,32],"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Avalonian Cape","a":"Avalonian Energy","m":[4,4,0,0],"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Caerleon Cape","a":"Shadowheart","m":[4,4,0,0],"tr":true,"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Cape","a":"","m":[4,4,0,0],"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Fort Sterling Cape","a":"Mountainheart","m":[4,4,0,0],"tr":true,"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Lymhurst Cape","a":"Treeheart","m":[4,4,0,0],"tr":true,"x":"1111"},{"s":"Toolmaker","b":"Capes","n":"Martlock Cape","a":"Rockheart","m":[4,4,0,0],"tr":true,"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Cleric Cowl","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Cowl of Purity","a":"Sanctified Mask","m":[8,0,0,0],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Cultist Cowl","a":"Alluring Padding","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Druid Cowl","a":"Druidic Preserved Beak","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Feyscale Hat","a":"Intact Fey Fibula","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Fiend Cowl","a":"Infernal Cloth Visor","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Mage Cowl","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Royal Cowl","a":"Royal Sigils","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Cowls","n":"Scholar Cowl","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Cleric Robe","a":"","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Cultist Robe","a":"Alluring Amulet","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Druid Robe","a":"Druidic Feathers","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Feyscale Robe","a":"Fey Dorsal Wing","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Fiend Robe","a":"Infernal Cloth Folds","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Mage Robe","a":"","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Robe of Purity","a":"Sanctified Belt","m":[16,0,0,0],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Royal Robe","a":"Royal Sigils","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Robes","n":"Scholar Robe","a":"","m":[16,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Cleric Sandals","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Cultist Sandals","a":"Alluring Bindings","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Druid Sandals","a":"Druidic Bindings","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Feyscale Sandals","a":"Fey Dragonscales","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Fiend Sandals","a":"Infernal Cloth Bindings","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Mage Sandals","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Royal Sandals","a":"Royal Sigils","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Sandals of Purity","a":"Sanctified Bindings","m":[8,0,0,0],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Cloth Sandals","n":"Scholar Sandals","a":"","m":[8,0,0,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Boltcasters","a":"Hellish Bolts","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Crossbow","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Energy Shaper","a":"Humming Avalonian Whirligig","m":[0,0,12,20],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Crossbows","n":"Heavy Crossbow","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Light Crossbow","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Siegebow","a":"Alluring Bolts","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Crossbows","n":"Weeping Repeater","a":"Lost Crossbow Mechanism","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Cursed Skull","a":"Cursed Jawbone","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Cursed Staff","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Damnation Staff","a":"Bloodforged Catalyst","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Demonic Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Great Cursed Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Lifecurse Staff","a":"Lost Cursed Crystal","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Mage","b":"Cursed Staffs","n":"Shadowcaller","a":"Fractured Opaque Orb","m":[0,0,8,16],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Daggers","n":"Bloodletter","a":"Hardened Debole","m":[0,8,16,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Bridled Fury","a":"Bloodstained Antiquities","m":[0,20,12,0],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Daggers","n":"Claws","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Dagger","a":"","m":[0,12,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Dagger Pair","a":"","m":[0,16,16,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Deathgivers","a":"Ghastly Blades","m":[0,16,16,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Demonfang","a":"Broken Demonic Fang","m":[0,12,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Daggers","n":"Twin Slayers","a":"Death-Touched Crystal","m":[0,16,16,0],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Blazing Staff","a":"Unholy Scroll","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Brimstone Staff","a":"Burning Orb","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Dawnsong","a":"Glowing Harmonic Ring","m":[0,0,12,20],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Fire Staff","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Great Fire Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Infernal Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Fire Staffs","n":"Wildfire Staff","a":"Wildfire Orb","m":[0,0,8,16],"x":"1111"},{"s":"Cooking Station","b":"Food","n":"Beef Sandwich","a":"","m":[0,0,0,0],"tr":true,"x":"0001"},{"s":"Cooking Station","b":"Food","n":"Beef Stew","a":"","m":[0,0,0,0],"tr":true,"x":"0001"},{"s":"Cooking Station","b":"Food","n":"Pork Omelette","a":"","m":[0,0,0,0],"tr":true,"x":"0010"},{"s":"Cooking Station","b":"Food","n":"Pork Pie","a":"","m":[0,0,0,0],"tr":true,"x":"0010"},{"s":"Cooking Station","b":"Food","n":"Roast Pork","a":"","m":[0,0,0,0],"tr":true,"x":"0010"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Arctic Staff","a":"Icy Crystal","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Chillhowl","a":"Chilled Crystalline Shard","m":[0,0,8,16],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Frost Staff","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Glacial Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Great Frost Staff","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Hoarfrost Staff","a":"Hoarfrost Orb","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Icicle Staff","a":"Icicle Orb","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Mage","b":"Frost Staffs","n":"Permafrost Prism","a":"Cursed Frozen Crystal","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Forge Hammers","a":"Hellish Hammer Heads","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Great Hammer","a":"","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Grovekeeper","a":"Engraved Log","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Hammer","a":"","m":[0,0,24,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Hand of Justice","a":"Massive Metallic Hand","m":[12,0,20,0],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Hammers","n":"Polehammer","a":"","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Hammers","n":"Tombhammer","a":"Ancient Hammer Head","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Divine Staff","a":"","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Exalted Staff","a":"Exalted Crystal","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Fallen Staff","a":"Infernal Scroll","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Great Holy Staff","a":"","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Hallowfall","a":"Messianic Curio","m":[8,0,0,16],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Holy Staff","a":"","m":[8,0,0,16],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Lifetouch Staff","a":"Possessed Scroll","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Mage","b":"Holy Staffs","n":"Redemption Staff","a":"Ghastly Scroll","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Assassin Hood","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Hellion Hood","a":"Demonhide Padding","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Hood of Tenacity","a":"Augured Padding","m":[0,8,0,0],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Hunter Hood","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Mercenary Hood","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Mistwalker Hood","a":"Flawless Griffin Beak","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Royal Hood","a":"Royal Sigils","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Specter Hood","a":"Ghastly Visor","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Hoods","n":"Stalker Hood","a":"Imbued Visor","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Assassin Jacket","a":"","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Hellion Jacket","a":"Demonhide Leather","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Hunter Jacket","a":"","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Jacket of Tenacity","a":"Augured Sash","m":[0,16,0,0],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Mercenary Jacket","a":"","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Mistwalker Jacket","a":"Untarnished Griffin Feathers","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Royal Jacket","a":"Royal Sigils","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Specter Jacket","a":"Ghastly Leather","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Jackets","n":"Stalker Jacket","a":"Imbued Leather Folds","m":[0,16,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Assassin Shoes","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Hellion Shoes","a":"Demonhide Bindings","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Hunter Shoes","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Mercenary Shoes","a":"","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Mistwalker Shoes","a":"Griffin Underfur","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Royal Shoes","a":"Royal Sigils","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Shoes of Tenacity","a":"Augured Fasteners","m":[0,8,0,0],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Specter Shoes","a":"Ghastly Bindings","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Leather Shoes","n":"Stalker Shoes","a":"Imbued Soles","m":[0,8,0,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Bedrock Mace","a":"Runed Rock","m":[8,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Camlann Mace","a":"Imbued Mace Head","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Dreadstorm Monarch","a":"Dreadstorm Crystal","m":[8,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Heavy Mace","a":"","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Incubus Mace","a":"Infernal Mace Head","m":[8,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Mace","a":"","m":[8,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Morning Star","a":"","m":[12,0,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Maces","n":"Oathkeepers","a":"Broken Oaths","m":[12,0,20,0],"x":"1111","av":1},{"s":"Mounts","b":"Mounts","n":"Riding Horse","a":"","m":[0,0,0,0],"tr":true,"x":"1111"},{"s":"Mounts","b":"Mounts","n":"Transport Ox","a":"","m":[0,0,0,0],"tr":true,"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Blight Staff","a":"Symbol of Blight","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Druidic Staff","a":"Druidic Inscriptions","m":[8,0,0,16],"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Great Nature Staff","a":"","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Ironroot Staff","a":"Uprooted Perennial Sapling","m":[8,0,0,16],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Nature Staff","a":"","m":[8,0,0,16],"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Rampant Staff","a":"Preserved Log","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Nature Staffs","n":"Wild Staff","a":"","m":[12,0,0,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Armor of Valor","a":"Exalted Plating","m":[0,0,16,0],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Demon Armor","a":"Demonic Plates","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Duskweaver Armor","a":"Veilweaver Carapace","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Graveguard Armor","a":"Ancient Chain Rings","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Guardian Armor","a":"","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Judicator Armor","a":"Preserved Animal Fur","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Knight Armor","a":"","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Royal Armor","a":"Royal Sigils","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Armor","n":"Soldier Armor","a":"","m":[0,0,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Boots of Valor","a":"Exalted Greave","m":[0,0,8,0],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Demon Boots","a":"Demonic Filling","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Duskweaver Boots","a":"Veilweaver Claws","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Graveguard Boots","a":"Ancient Bindings","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Guardian Boots","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Judicator Boots","a":"Inscribed Bindings","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Knight Boots","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Royal Boots","a":"Royal Sigils","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Boots","n":"Soldier Boots","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Demon Helmet","a":"Demonic Scraps","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Duskweaver Helmet","a":"Veilweaver Mandibles","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Graveguard Helmet","a":"Ancient Padding","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Guardian Helmet","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Helmet of Valor","a":"Exalted Visor","m":[0,0,8,0],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Judicator Helmet","a":"Carved Skull Padding","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Knight Helmet","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Royal Helmet","a":"Royal Sigils","m":[0,0,8,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Plate Helmets","n":"Soldier Helmet","a":"","m":[0,0,8,0],"x":"1111"},{"s":"Alchemist","b":"Potion","n":"Healing Potion","a":"","m":[0,0,0,0],"tr":true,"x":"0100"},{"s":"Alchemist","b":"Potion","n":"Invisibility Potion","a":"","m":[0,0,0,0],"tr":true,"x":"0001"},{"s":"Alchemist","b":"Potion","n":"Poison Potion","a":"","m":[0,0,0,0],"tr":true,"x":"0101"},{"s":"Alchemist","b":"Potion","n":"Resistance Potion","a":"","m":[0,0,0,0],"tr":true,"x":"1010"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Black Monk Stave","a":"Reinforced Morgana Pole","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Double Bladed Staff","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Grailseeker","a":"Timeworn Walking Staff","m":[0,20,12,0],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Ironclad Staff","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Phantom Twinblade","a":"Mirage Crystal","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Quarterstaff","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Soulscythe","a":"Hellish Sicklehead Pair","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Quarterstaffs","n":"Staff of Balance","a":"Preserved Rocks","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Bloodmoon Staff","a":"Werewolf Remnant+Fangs","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Earthrune Staff","a":"Golem Remnant+Tooth","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Hellspawn Staff","a":"Hellfire Imp Remnant+Horn","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Lightcaller","a":"Dawnbird Remnant+Dawnfeather","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Primal Staff","a":"Spirit Paws","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Prowling Staff","a":"Shadow Claws","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Shapeshifter","n":"Rootbound Staff","a":"Sylvian Root","m":[0,12,0,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Shields","n":"Astral Aegis","a":"Crushed Avalonian Heirloom","m":[0,0,4,4],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"Shields","n":"Caitiff Shield","a":"Infernal Shield Core","m":[0,0,4,4],"x":"1111"},{"s":"Journeyman Warrior","b":"Shields","n":"Facebreaker","a":"Bloodforged Spikes","m":[0,0,4,4],"x":"1111"},{"s":"Journeyman Warrior","b":"Shields","n":"Sarcophagus","a":"Ancient Shield Core","m":[0,0,4,4],"x":"1111"},{"s":"Journeyman Warrior","b":"Shields","n":"Shield","a":"","m":[0,0,4,4],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Daybreaker","a":"Ruined Ancestral Vamplate","m":[0,0,8,16],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Spears","n":"Glaive","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Heron Spear","a":"Keeper Spearhead","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Pike","a":"","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Rift Glaive","a":"Rift Crystal","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Spear","a":"","m":[0,0,8,16],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Spirithunter","a":"Infernal Harpoon Tip","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Hunter","b":"Spears","n":"Trinity Spear","a":"Cursed Barbs","m":[0,0,12,20],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Broadsword","a":"","m":[0,8,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Carving Sword","a":"Demonic Blade","m":[0,8,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Clarent Blade","a":"Bloodforged Blade","m":[0,8,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Claymore","a":"","m":[0,12,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Dual Swords","a":"","m":[0,12,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Galatine Pair","a":"Cursed Blades","m":[0,12,20,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Infinity Blade","a":"Infinite Crystal","m":[0,8,16,0],"x":"1111"},{"s":"Journeyman Warrior","b":"Swords","n":"Kingmaker","a":"Remnants of the Old King","m":[0,8,16,0],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Tomes","n":"Celestial Censer","a":"Severed Celestial Keepsake","m":[4,4,0,0],"x":"1111","av":1},{"s":"Journeyman Mage","b":"Tomes","n":"Eye of Secrets","a":"Alluring Crystal","m":[4,4,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Tomes","n":"Muisak","a":"Demonic Jawbone","m":[4,4,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Tomes","n":"Taproot","a":"Inscribed Stone","m":[4,4,0,0],"x":"1111"},{"s":"Journeyman Mage","b":"Tomes","n":"Tome of Spells","a":"","m":[4,4,0,0],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Fishing Rod","a":"","m":[2,0,0,6],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Pickaxe","a":"","m":[0,0,2,6],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Sickle","a":"","m":[0,0,2,6],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Skinning Knife","a":"","m":[0,0,2,6],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Stone Hammer","a":"","m":[0,0,2,6],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Tracking Toolkit","a":"","m":[0,6,0,2],"x":"1111"},{"s":"Toolmaker","b":"Tools","n":"Axe","a":"","m":[0,0,2,6],"x":"1111"},{"s":"Journeyman Hunter","b":"Torches","n":"Cryptcandle","a":"Ghastly Candle","m":[4,0,0,4],"x":"1111"},{"s":"Journeyman Hunter","b":"Torches","n":"Leering Cane","a":"Hellish Handle","m":[4,0,0,4],"x":"1111"},{"s":"Journeyman Hunter","b":"Torches","n":"Mistcaller","a":"Runed Horn","m":[4,0,0,4],"x":"1111"},{"s":"Journeyman Hunter","b":"Torches","n":"Sacred Scepter","a":"Shattered Avalonian Memento","m":[4,0,0,4],"x":"1111","av":1},{"s":"Journeyman Hunter","b":"Torches","n":"Torch","a":"","m":[4,0,0,4],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Battle Bracers","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Brawler Gloves","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Fists of Avalon","a":"Damaged Avalonian Gauntlet","m":[0,20,12,0],"x":"1111","av":1},{"s":"Journeyman Warrior","b":"War Gloves","n":"Hellfire Hands","a":"Severed Demonic Horns","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Ravenstrike Cestus","a":"Warped Raven Plate","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Spiked Gauntlets","a":"","m":[0,20,12,0],"x":"1111"},{"s":"Journeyman Warrior","b":"War Gloves","n":"Ursine Maulers","a":"Ursine Guardian Remains","m":[0,20,12,0],"x":"1111"},{"s":"Mounts","b":"Mounts","n":"Armored Horse","a":"","m":[0,0,0,0],"tr":true,"x":"1111"},{"s":"Mounts","b":"Mounts","n":"Swiftclaw","a":"","m":[0,0,0,0],"tr":true,"x":"1000"},{"s":"Mounts","b":"Mounts","n":"Direwolf","a":"","m":[0,0,0,0],"tr":true,"x":"0100"},{"s":"Mounts","b":"Mounts","n":"Moose","a":"","m":[0,0,0,0],"tr":true,"x":"0100"},{"s":"Alchemist","b":"Potion","n":"Calming Potion","a":"","m":[0,0,0,0],"tr":true,"x":"1010"},{"s":"Alchemist","b":"Potion","n":"Gigantify Potion","a":"","m":[0,0,0,0],"tr":true,"x":"1010"},{"s":"Alchemist","b":"Potion","n":"Sticky Potion","a":"","m":[0,0,0,0],"tr":true,"x":"1010"},{"s":"Alchemist","b":"Potion","n":"Hellfire Potion","a":"","m":[0,0,0,0],"tr":true,"x":"0101"},{"s":"Alchemist","b":"Potion","n":"Energy Potion","a":"","m":[0,0,0,0],"tr":true,"x":"0100"},{"s":"Alchemist","b":"Potion","n":"Tornado in a Bottle","a":"","m":[0,0,0,0],"tr":true,"x":"0101"},{"s":"Cooking Station","b":"Food","n":"Deadwater Eel Stew","a":"","m":[0,0,0,0],"tr":true,"x":"0001"},{"s":"Cooking Station","b":"Food","n":"Redspring Eel Stew","a":"","m":[0,0,0,0],"tr":true,"x":"0100"}];
+const TIERS = [5,6,7,8];
+const MATS = ["Cloth","Leather","Metal Bar","Planks"];
+const CRAFT_OPTS = {5:["5.0","4.1"],6:["6.0","5.1","4.2"],7:["7.0","6.1","5.2","4.3"],8:["8.0","7.1","6.2","5.3","4.4"]};
+const DEFAULT_CFG = {"defaults":[2,8,2,0],"branch":{"Capes":[5,20,3,0],"Bags":[8,30,5,0],"Tools":[10,25,10,3]},"item":{"Invisibility Potion":[null,null,null,100],"Resistance Potion":[50,null,200,null],"Healing Potion":[null,150,null,null],"Poison Potion":[null,60,null,30],"Calming Potion":[null,null,40,null],"Gigantify Potion":[null,null,40,null],"Sticky Potion":[null,null,40,null],"Energy Potion":[null,30,null,null],"Pork Omelette":[null,null,250,null],"Beef Stew":[null,null,null,150],"Beef Sandwich":[null,null,null,60],"Pork Pie":[null,null,60,null],"Roast Pork":[null,null,40,null],"Deadwater Eel Stew":[null,null,null,60],"Armored Horse":[20,5,null,null],"Riding Horse":[30,10,null,null],"Transport Ox":[10,15,5,null],"Swiftclaw":[10,null,null,null],"Direwolf":[null,5,null,null],"Moose":[null,5,null,null],"Bloodmoon Staff":[0,20,8,0],"Earthrune Staff":[0,20,8,0],"Hellspawn Staff":[0,20,8,0],"Lightcaller":[0,20,8,0],"Primal Staff":[0,20,8,0],"Prowling Staff":[0,20,8,0],"Rootbound Staff":[0,20,8,0],"Hallowfall":[5,25,5,0],"Permafrost Prism":[5,25,5,0],"Carving Sword":[5,25,5,0],"Dawnsong":[5,25,5,0],"Assassin Hood":[5,25,5,0],"Robe of Purity":[5,25,5,0],"Feyscale Robe":[5,25,5,0],"Stalker Shoes":[5,25,5,0],"Hood of Tenacity":[5,25,5,0],"Royal Armor":[5,25,5,0],"Cultist Sandals":[5,25,5,0],"Judicator Helmet":[5,25,5,0],"Judicator Armor":[5,25,5,0],"Cleric Sandals":[5,25,5,0],"Lymhurst Cape":[2,20,3,0],"Caerleon Cape":[0,6,1,0],"Fort Sterling Cape":[0,6,1,0],"Martlock Cape":[0,6,1,0],"Hellfire Potion":[null,20,null,10],"Tornado in a Bottle":[null,20,null,10]},"craft":["4.1","4.2","5.2","6.2"],"rrr":0,"category":{"armor":[3,12,3,0],"consumables":[0,0,0,0],"mounts":[0,0,0,0]}};
+const exists = (it,i) => it.x[i]==="1";
+const GROUPS = [
+  {id:"weapons", all:"Every weapon", name:"Weapons", subs:[["Melee",["Axes","Daggers","Hammers","Maces","Quarterstaffs","Spears","Swords","War Gloves"]],["Ranged",["Bows","Crossbows"]],["Magic",["Arcane Staffs","Cursed Staffs","Fire Staffs","Frost Staffs","Holy Staffs","Nature Staffs","Shapeshifter"]]]},
+  {id:"offhands", all:"Every off-hand", name:"Off-hands", subs:[["",["Shields","Tomes","Torches"]]]},
+  {id:"armor", all:"All armor", name:"Armor", subs:[["Head",["Cloth Cowls","Leather Hoods","Plate Helmets"]],["Chest",["Cloth Robes","Leather Jackets","Plate Armor"]],["Shoes",["Cloth Sandals","Leather Shoes","Plate Boots"]]]},
+  {id:"accessories", all:"All capes & bags", name:"Capes & bags", subs:[["",["Capes","Bags"]]]},
+  {id:"tools", all:"All tools", name:"Gathering tools", subs:[["",["Tools"]]]},
+  {id:"consumables", all:"All consumables", name:"Consumables", flat:true, subs:[["Potions",["Potion"]],["Food",["Food"]]]},
+  {id:"mounts", all:"All mounts", name:"Mounts", flat:true, subs:[["",["Mounts"]]]},
+];
+const CAT_OF = {}; GROUPS.forEach(g=>g.subs.forEach(([sub,bs])=>bs.forEach((b,k)=>CAT_OF[b]={g,sub,ord:GROUPS.indexOf(g)*100+g.subs.findIndex(x=>x[1]===bs)*20+k})));
+ITEMS.forEach(it=>{ const c=CAT_OF[it.b]; it.g=c.g.id; it.ord=c.ord; });
+const GNAME = Object.fromEntries(GROUPS.map(g=>[g.id,g.name]));
+const ALIASES = {"blackmonkstaff":"Black Monk Stave"};
+const norm = s => s.toLowerCase().replace(/[^a-z]/g,"");
+const byNorm = {}; ITEMS.forEach(it=>byNorm[norm(it.n)]=it);
+const PREFIX = /^(Beginner's|Novice's|Journeyman's|Adept's|Expert's|Master's|Grandmaster's|Elder's|Minor|Major)\s+/;
+
+let cfg = structuredClone(DEFAULT_CFG);
+let snap = null; // {file, exportedAt, loadedAt, listings, units, stock:{name:[5]}, unmatched:{name:count}}
+let db = null, cfgRef = null, snapRef = null;
+let tab = "short", station = "All", query = "";
+const openBr = new Set();
+
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- CSV ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[], f="", q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){ row.push(f); f=""; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n') i++; row.push(f); f=""; if(row.length>1||row[0]!=="") rows.push(row); row=[]; }
+    else f+=c;
+  }
+  if(f!==""||row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+function buildSnapshot(text, fileName){
+  const rows = parseCSV(text.replace(/^﻿/,""));
+  const h = rows.shift().map(x=>x.trim());
+  const ix = k => h.indexOf(k);
+  const iName=ix("Item Name"), iT=ix("Tier"), iE=ix("EnchantmentLevel"), iA=ix("Amount");
+  if(iName<0||iT<0||iA<0) throw new Error("This file is missing the Item Name, Tier or Amount column. Load the MarketOrders CSV from the export script.");
+  const stock={}, unmatched={}; let units=0;
+  for(const r of rows){
+    if(r.length<h.length-1) continue;
+    const amt=+r[iA]||0, t=+r[iT]||0, e=+(r[iE]||0);
+    units+=amt;
+    const base=r[iName].replace(PREFIX,"").trim();
+    const it = byNorm[norm(base)] || (ALIASES[norm(base)] && byNorm[norm(ALIASES[norm(base)])]);
+    if(!it){ unmatched[base]=(unmatched[base]||0)+amt; continue; }
+    const eq = it.tr ? t : Math.min(8,t+e); // consumables & mounts: base tier; gear: item-power equivalent
+    if(eq<5||eq>8) continue;
+    (stock[it.n] ||= [0,0,0,0])[eq-5]+=amt;
+  }
+  const m = fileName.match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
+  return {file:fileName, exportedAt: m?`${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}`:"", loadedAt:new Date().toISOString(), listings:rows.length, units, stock, unmatched};
+}
+
+/* ---------- model ---------- */
+function target(it,i){
+  if(!exists(it,i)) return 0;
+  const io=cfg.item[it.n]; if(io && io[i]!==null && io[i]!==undefined && io[i]!=="") return +io[i];
+  return inherited("item", it, i);
+}
+const isSet = v => v!==null && v!==undefined && v!=="";
+// value a level would get from the levels above it
+function inherited(level, x, i){
+  if(level==="item"){ const bo=cfg.branch[x.b]; if(bo&&isSet(bo[i])) return +bo[i]; return inherited("branch", x.b, i); }
+  if(level==="branch"){ const g=CAT_OF[x].g.id; const co=cfg.category?.[g]; if(co&&isSet(co[i])) return +co[i]; return inherited("category", g, i); }
+  return +cfg.defaults[i]||0;
+}
+function have(it,i){ return snap?.stock?.[it.n]?.[i]||0; }
+function visibleItems(){
+  const q=query.toLowerCase();
+  return ITEMS.filter(it=>(station==="All"||it.g===station) && (!q || it.n.toLowerCase().includes(q) || it.b.toLowerCase().includes(q)));
+}
+let done = {}; // item name -> crafted count per tier since the last export
+function doneOf(it,i){ return +(done[it.n]?.[i]||0); }
+const STATION_NAME = {"Journeyman Warrior":"Warrior's Forge","Journeyman Hunter":"Hunter's Lodge","Journeyman Mage":"Mage Tower","Toolmaker":"Toolmaker","Cooking Station":"Cook","Alchemist":"Alchemist's Lab","Mounts":"Saddler"};
+const stName = s => STATION_NAME[s]||s;
+const AV_ARTS = new Set(ITEMS.filter(i=>i.av).map(i=>i.a));
+const artLabel = it => it.a + (it.av ? " · or Crystallized Divinity" : "");
+// split artifact counts into Avalonian (any can be swapped for Crystallized Divinity) and the rest
+function artGroups(arts){
+  const ak=Object.keys(arts).sort(); const av=ak.filter(k=>AV_ARTS.has(k)), other=ak.filter(k=>!AV_ARTS.has(k));
+  const avTot={}; av.forEach(k=>{ for(const t in arts[k]) avTot[t]=(avTot[t]||0)+arts[k][t]; });
+  return {av,other,avTot};
+}
+const resKey = it => MATS.filter((m,k)=>it.m[k]).join(" + ") || "None";
+function rows(){
+  return visibleItems().map(it=>{
+    const cells=TIERS.map((t,i)=>{const tg=target(it,i), hv=have(it,i), dn=doneOf(it,i); return {tg,hv,dn,need:Math.max(0,tg-hv-dn)};});
+    return {it,cells,need:cells.reduce((a,c)=>a+c.need,0)};
+  });
+}
+function matTag(it,i){ return it.b==="Tools" ? `${TIERS[i]}.0` : cfg.craft[i]; }
+function materials(rs){
+  const mats={}, arts={}, byStation={}; const keep=1-(+cfg.rrr||0)/100;
+  for(const r of rs){ if(r.it.tr) continue;
+    r.cells.forEach((c,i)=>{ if(!c.need) return;
+      const tag=matTag(r.it,i);
+      r.it.m.forEach((q,k)=>{ if(!q) return; const v=q*c.need*keep;
+        (mats[MATS[k]] ||= {})[tag]=(mats[MATS[k]][tag]||0)+v;
+        ((byStation[r.it.s] ||= {})[MATS[k]] ||= 0); byStation[r.it.s][MATS[k]]+=v; });
+      if(r.it.a){ const at="T"+tag.split(".")[0]; (arts[r.it.a] ||= {})[at]=(arts[r.it.a][at]||0)+c.need; }
+    });
+  }
+  return {mats,arts,byStation};
+}
+
+/* ---------- render ---------- */
+function renderSnap(){
+  if(!snap){ $("snapInfo").textContent="No market export loaded yet."; return; }
+  const when = new Date(snap.loadedAt).toLocaleString([], {dateStyle:"medium",timeStyle:"short"});
+  $("snapInfo").innerHTML=`Export <b>${esc(snap.exportedAt||snap.file)}</b> · ${fmt(snap.listings)} listings, ${fmt(snap.units)} units · loaded ${esc(when)}`;
+}
+function renderStats(rs){
+  const all=rs; let short=0, craft=0, haul=0, lines=0;
+  for(const r of all){ if(r.need){lines+=r.cells.filter(c=>c.need).length;} short+=r.need; if(r.it.tr) haul+=r.need; else craft+=r.need; }
+  const {mats}=materials(all); let mt=0; for(const m in mats) for(const t in mats[m]) mt+=mats[m][t];
+  $("stats").innerHTML=[
+    [short,"Units short","hot"],[craft,"Craftable units"],[haul,"Haul-in units"],[mt,"Refined mats to craft"]
+  ].map(([v,l,c])=>`<div class="stat ${c||""}"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
+}
+function renderChips(){
+  const st=[["All","Everything"],...GROUPS.map(g=>[g.id,g.name])];
+  $("stationChips").innerHTML=st.map(([id,n])=>`<button class="chip" aria-pressed="${id===station}" data-st="${id}">${esc(n)}</button>`).join("");
+}
+function tierHead(){ return TIERS.map(t=>`<th class="c"><span class="tier t${t}">T${t}</span></th>`).join(""); }
+function renderShort(rs){
+  const showAll=$("showAll").checked;
+  const list=rs.filter(r=>showAll||r.need>0);
+  if(!snap && !list.length){ $("shortTbl").innerHTML=`<tr><td class="empty">Load a market CSV to see what's short.</td></tr>`; return; }
+  if(!list.length){ $("shortTbl").innerHTML=`<tr><td class="empty">Everything in this view is at or above target.</td></tr>`; return; }
+  let html=`<thead><tr><th>Item</th><th>Branch</th>${tierHead()}<th class="r">Total short</th></tr></thead><tbody>`;
+  let cur=null;
+  for(const r of list.sort((a,b)=>a.it.ord-b.it.ord||a.it.n.localeCompare(b.it.n))){
+    if(r.it.g!==cur){ cur=r.it.g; const tot=list.filter(x=>x.it.g===cur).reduce((a,x)=>a+x.need,0); html+=`<tr class="grp"><td colspan="${3+TIERS.length}">${esc(GNAME[cur])} <span class="num" style="font-size:13px">· ${fmt(tot)} short</span></td></tr>`; }
+    html+=`<tr><td class="item">${esc(r.it.n)} ${r.it.tr?'<span class="badge haul">Haul in</span>':""}${r.it.a?`<small>Artifact: ${esc(artLabel(r.it))}</small>`:""}</td><td class="muted">${esc(r.it.b)}</td>`;
+    r.cells.forEach((c,i)=>{
+      if(!exists(r.it,i)){ html+=`<td class="c muted" title="Doesn't exist at this tier">—</td>`; return; }
+      if(!c.tg && !c.hv){ html+=`<td class="c muted">·</td>`; return; }
+      html+=`<td class="c ${c.need?"needc":""}"><div class="cell ${c.need?"":"zero"}"><div class="n">${c.need?fmt(c.need):"✓"}</div><div class="h">${c.hv}${c.dn?`+${c.dn}`:""}/${c.tg}</div></div></td>`;
+    });
+    html+=`<td class="r num"><b>${r.need?fmt(r.need):""}</b></td></tr>`;
+  }
+  $("shortTbl").innerHTML=html+"</tbody>";
+}
+function renderUnmatched(){
+  const u=snap?.unmatched||{}; const keys=Object.keys(u).sort((a,b)=>u[b]-u[a]);
+  $("unmatchedBox").hidden=!keys.length;
+  $("unmatchedCount").textContent=`(${keys.length} names, not counted)`;
+  $("unmatchedTbl").innerHTML=`<thead><tr><th>Name in CSV</th><th class="r">Units</th></tr></thead><tbody>`+keys.map(k=>`<tr><td>${esc(k)}</td><td class="r num">${fmt(u[k])}</td></tr>`).join("")+"</tbody>";
+}
+function sortedTags(mats){ const s=new Set(); for(const m in mats) for(const t in mats[m]) s.add(t); return [...s].sort((a,b)=>parseFloat(a)-parseFloat(b)||a.localeCompare(b)); }
+function renderMats(rs){
+  const {mats,arts,byStation}=materials(rs); const tags=sortedTags(mats);
+  if(!tags.length){ $("matTbl").innerHTML=`<tr><td class="empty">Nothing craftable is short in this view.</td></tr>`; }
+  else{
+    let h=`<thead><tr><th>Refined material</th>${tags.map(t=>`<th class="r"><span class="tier t${Math.min(8,+t.split(".")[0]+ +t.split(".")[1])}">${t}</span></th>`).join("")}</tr></thead><tbody>`;
+    for(const m of MATS){ if(!mats[m]) continue; h+=`<tr><td><b>${m}</b></td>${tags.map(t=>`<td class="r num">${mats[m][t]?fmt(Math.ceil(mats[m][t])):'<span class="muted">·</span>'}</td>`).join("")}</tr>`; }
+    $("matTbl").innerHTML=h+"</tbody>";
+  }
+  const ak=Object.keys(arts).sort(); const at=[...new Set(ak.flatMap(k=>Object.keys(arts[k])))].sort();
+  const ag=artGroups(arts); const cells=o=>at.map(t=>`<td class="r num">${o[t]?fmt(o[t]):'<span class="muted">·</span>'}</td>`).join("");
+  let ah=`<thead><tr><th>Artifact / special ingredient</th>${at.map(t=>`<th class="r"><span class="tier t${t.slice(1)}">${t}</span></th>`).join("")}</tr></thead><tbody>`;
+  if(!ak.length) ah+=`<tr><td class="muted">No artifacts needed.</td></tr>`;
+  if(ag.av.length) ah+=`<tr class="grp"><td>Avalonian <span style="text-transform:none;font:400 13px var(--body)">· Crystallized Divinity can replace any of these</span></td>${cells(ag.avTot)}</tr>`+ag.av.map(k=>`<tr><td>${esc(k)}</td>${cells(arts[k])}</tr>`).join("");
+  if(ag.other.length) ah+=(ag.av.length?`<tr class="grp"><td colspan="${1+at.length}">Other artifacts</td></tr>`:"")+ag.other.map(k=>`<tr><td>${esc(k)}</td>${cells(arts[k])}</tr>`).join("");
+  $("artTbl").innerHTML=ah+"</tbody>";
+  const sk=Object.keys(byStation).sort();
+  $("stationTbl").innerHTML=`<thead><tr><th>Station</th>${MATS.map(m=>`<th class="r">${m}</th>`).join("")}</tr></thead><tbody>`+(sk.length?sk.map(s=>`<tr><td>${esc(stName(s))}</td>${MATS.map(m=>`<td class="r num">${byStation[s][m]?fmt(Math.ceil(byStation[s][m])):'<span class="muted">·</span>'}</td>`).join("")}</tr>`).join(""):`<tr><td colspan="5" class="muted">—</td></tr>`)+"</tbody>";
+}
+function cellInputs(level, key, it){
+  const own = level==="category" ? cfg.category?.[key] : level==="branch" ? cfg.branch[key] : cfg.item[key];
+  const src = level==="item" ? it : key;
+  let html = TIERS.map((t,i)=>{
+    if(it && !exists(it,i)) return `<td class="c"><input type="text" disabled aria-label="T${t} doesn't exist" placeholder="—"></td>`;
+    const v = own && isSet(own[i]) ? own[i] : "";
+    return `<td class="c"><input type="number" min="0" inputmode="numeric" aria-label="${esc(key)} T${t}" data-level="${level}" data-key="${esc(key)}" data-i="${i}" value="${v}" placeholder="${inherited(level,src,i)}" class="${v!==""?"set":""}"></td>`;
+  }).join("");
+  const anySet = own && own.some(isSet);
+  return html + `<td class="c">${anySet?`<button class="clr" title="Clear this row" aria-label="Clear ${esc(key)}" data-clear="${level}" data-key="${esc(key)}">×</button>`:""}</td>`;
+}
+function renderTargets(){
+  $("defIn").innerHTML=TIERS.map((t,i)=>`<label><span class="tier t${t}">T${t}</span><input type="number" min="0" id="def-${i}" data-i="${i}" value="${cfg.defaults[i]}" style="width:56px;text-align:center"></label>`).join("");
+  $("craftIn").innerHTML=TIERS.map((t,i)=>`<label for="craft-${i}">Craft <span class="tier t${t}">T${t}</span> using</label><select id="craft-${i}" data-i="${i}">${CRAFT_OPTS[t].map(o=>`<option ${o===cfg.craft[i]?"selected":""}>${o}</option>`).join("")}</select>`).join("");
+  $("rrr").value=cfg.rrr;
+  const vis = visibleItems(); const q = query.trim();
+  const head = `<thead><tr><th></th>${TIERS.map(t=>`<th class="c"><span class="tier t${t}">T${t}</span></th>`).join("")}<th class="c"></th></tr></thead>`;
+  const out = GROUPS.filter(g=>station==="All"||station===g.id).map(g=>{
+    let rowsH = `<tr class="lvl-cat"><td>${esc(g.all)}</td>${cellInputs("category",g.id)}</tr>`;
+    let any=false;
+    for(const [sub,bs] of g.subs){
+      const subRows=[];
+      for(const b of bs){
+        const its = vis.filter(i=>i.b===b).sort((x,y)=>x.n.localeCompare(y.n)); if(!its.length) continue;
+        const open = g.flat || !!q || openBr.has(b);
+        const nCustom = its.filter(i=>cfg.item[i.n]&&cfg.item[i.n].some(isSet)).length;
+        subRows.push(`<tr class="lvl-br"><td>${g.flat&&bs.length===1&&!sub?"":`<button class="tog" data-tog="${esc(b)}" aria-expanded="${open}">${open?"▾":"▸"}</button>`}${esc(b)} <span class="muted" style="font-weight:400;font-size:12px">${its.length} items${nCustom?` · ${nCustom} custom`:""}</span></td>${cellInputs("branch",b)}</tr>`);
+        if(open) for(const it of its) subRows.push(`<tr class="lvl-item"><td>${esc(it.n)}${it.tr?' <span class="badge haul">Haul in</span>':""}</td>${cellInputs("item",it.n,it)}</tr>`);
+      }
+      if(!subRows.length) continue; any=true;
+      if(sub) rowsH += `<tr class="lvl-sub"><td colspan="${TIERS.length+2}">${esc(sub)}</td></tr>`;
+      rowsH += subRows.join("");
+    }
+    if(!any) return "";
+    return `<div class="catsec"><h2>${esc(g.name)}<small>${g.flat?"Only items with a number of their own get stocked":""}</small></h2><div class="panel scroll"><table class="tt">${head}<tbody>${rowsH}</tbody></table></div></div>`;
+  }).join("");
+  $("brList").innerHTML = out || `<div class="empty panel">Nothing matches the current search.</div>`;
+}
+let cStation="All", cArt="any", cRes="any", wMode="craft", hType="any", wView=lsGet("restock.wview")||"item";
+// one entry per item × tier that needs work (or has logged work)
+function workRows(rs){
+  const out=[];
+  for(const r of rs){
+    if(wMode==="craft" ? r.it.tr : !r.it.tr) continue;
+    if(wMode==="craft"){
+      if(cStation!=="All" && r.it.s!==cStation) continue;
+      if(cArt!=="any" && (cArt==="yes")!==!!r.it.a) continue;
+      if(cRes!=="any" && resKey(r.it)!==cRes) continue;
+    } else if(hType!=="any" && r.it.b!==hType) continue;
+    r.cells.forEach((c,i)=>{ if(exists(r.it,i) && (c.tg-c.hv>0 || c.dn>0)) out.push({r,it:r.it,i,c}); });
+  }
+  return out;
+}
+function rowsFromWork(w){ // shape materials() expects
+  const m=new Map(); w.forEach(x=>m.set(x.r,x.r)); return [...m.values()];
+}
+function renderCraftFilters(){
+  const st=[...new Set(ITEMS.filter(i=>!i.tr).map(i=>i.s))].sort((a,b)=>stName(a).localeCompare(stName(b)));
+  $("cStation").innerHTML=`<option value="All">All stations</option>`+st.map(s=>`<option value="${esc(s)}" ${s===cStation?"selected":""}>${esc(stName(s))}</option>`).join("");
+  const rk=[...new Set(ITEMS.filter(i=>!i.tr).map(resKey))].sort();
+  $("cRes").innerHTML=`<option value="any">Any</option>`+rk.map(k=>`<option ${k===cRes?"selected":""}>${esc(k)}</option>`).join("");
+  $("cArt").value=cArt;
+  const ht=[...new Set(ITEMS.filter(i=>i.tr).map(i=>i.b))].sort();
+  $("hType").innerHTML=`<option value="any">Everything</option>`+ht.map(k=>`<option ${k===hType?"selected":""}>${esc(k)}</option>`).join("");
+  document.querySelectorAll("[data-craftonly]").forEach(e=>e.hidden=wMode!=="craft");
+  document.querySelectorAll("[data-haulonly]").forEach(e=>e.hidden=wMode==="craft");
+  $("mCraft").setAttribute("aria-pressed",wMode==="craft"); $("mHaul").setAttribute("aria-pressed",wMode!=="craft");
+}
+function renderBring(w){
+  const left=w.reduce((a,x)=>a+x.c.need,0), dn=w.reduce((a,x)=>a+x.c.dn,0);
+  const verb = wMode==="craft"?"crafted":"brought in";
+  let h=`<div class="toolbar"><h2 style="flex:1">${wMode==="craft"?`Take to ${cStation==="All"?"the stations":esc(stName(cStation))}`:"Buy and bring in"}</h2><span class="muted num">${fmt(left)} left · ${fmt(dn)} ${verb}</span></div>`;
+  if(wMode==="craft"){
+    const {mats,arts}=materials(rowsFromWork(w)); const tags=sortedTags(mats);
+    if(!tags.length) h+=`<div class="muted">Nothing left to craft in this filter.</div>`;
+    else h+=`<div class="mgrid">`+MATS.filter(m=>mats[m]).map(m=>`<div class="mname">${m}</div><div class="mrow">`+tags.filter(t=>mats[m][t]).map(t=>`<span class="mchip"><span class="tier t${Math.min(8,+t.split(".")[0]+ +t.split(".")[1])}">${t}</span><b>${fmt(Math.ceil(mats[m][t]))}</b></span>`).join("")+`</div>`).join("")+`</div>`;
+    const ak=Object.keys(arts).sort();
+    if(ak.length){ const tot=ak.reduce((a,k)=>a+Object.values(arts[k]).reduce((x,y)=>x+y,0),0);
+      const ag=artGroups(arts); const tiers=o=>Object.keys(o).sort().map(t=>`<span class="tier t${t.slice(1)}">${t}</span> ${o[t]}`).join(" &nbsp; ");
+      const avN=Object.values(ag.avTot).reduce((a,b)=>a+b,0);
+      h+=`<details class="arts"><summary>Artifacts: ${fmt(tot)} across ${ak.length} types${avN?` · ${fmt(avN)} Avalonian (Crystallized Divinity works for those)`:""}</summary><table><tbody>`+
+        (ag.av.length?`<tr><td><b>Avalonian total</b> <span class="muted">· or Crystallized Divinity</span></td><td class="r num">${tiers(ag.avTot)}</td></tr>`+ag.av.map(k=>`<tr><td style="padding-left:20px">${esc(k)}</td><td class="r num">${tiers(arts[k])}</td></tr>`).join(""):"")+
+        ag.other.map(k=>`<tr><td>${esc(k)}</td><td class="r num">${tiers(arts[k])}</td></tr>`).join("")+`</tbody></table></details>`; }
+  } else if(!left) h+=`<div class="muted">Nothing left to bring in for this filter.</div>`;
+  $("bring").innerHTML=h;
+}
+function renderCraftByItem(w){
+  const byItem=new Map(); w.forEach(x=>{ if(!byItem.has(x.it)) byItem.set(x.it,{it:x.it,r:x.r,tiers:new Set()}); byItem.get(x.it).tiers.add(x.i); });
+  const list=[...byItem.values()];
+  const act=TIERS.map((t,i)=>i).filter(i=>w.some(x=>x.i===i)); // only tiers with work in this filter
+  const grpKey = x => wMode==="craft" && cStation==="All" ? x.it.s : "";
+  list.sort((a,b)=>stName(grpKey(a)).localeCompare(stName(grpKey(b))) || a.it.ord-b.it.ord || a.it.n.localeCompare(b.it.n));
+  const sub = i => { if(wMode!=="craft") return ""; const tag=cfg.craft[i]; return `<div class="sub">${tag} mats · T${tag.split(".")[0]} artifact</div>`; };
+  let h=`<thead><tr><th>Item</th>${act.map(i=>`<th class="c tcol"><span class="tier t${TIERS[i]}">T${TIERS[i]}</span>${sub(i)}</th>`).join("")}</tr></thead><tbody>`;
+  let curG=null, curB=null; const verb=wMode==="craft"?"crafted":"brought in";
+  for(const e of list){
+    const g=grpKey(e);
+    if(g!==curG){ curG=g; curB=null; if(g) h+=`<tr class="sth"><td colspan="${1+act.length}">${esc(stName(g))}</td></tr>`; }
+    if(e.it.b!==curB){ curB=e.it.b; h+=`<tr class="brh"><td colspan="${1+act.length}">${esc(curB)}</td></tr>`; }
+    h+=`<tr><td class="item">${esc(e.it.n)}${e.it.a?`<small>${esc(artLabel(e.it))}</small>`:""}</td>`;
+    act.forEach(i=>{ const c=e.r.cells[i];
+      if(!exists(e.it,i)){ h+=`<td class="c muted">—</td>`; return; }
+      if(!e.tiers.has(i)){ h+=`<td class="c muted" title="${c.hv} listed, target ${c.tg}">${c.tg?"✓":"·"}</td>`; return; }
+      const key=`${e.it.n}|${i}`;
+      h+=`<td class="c icell" title="${c.hv} listed, target ${c.tg}"><span class="left ${c.need?"":"zero"}" data-left="${esc(key)}">${c.need?fmt(c.need):"✓"}</span><span class="step sm"><button data-step="-1" data-key="${esc(key)}" aria-label="One fewer">−</button><input type="number" min="0" inputmode="numeric" data-done="${esc(e.it.n)}" data-i="${i}" value="${c.dn||""}" placeholder="0" aria-label="${esc(e.it.n)} T${TIERS[i]} ${verb}"><button data-step="1" data-key="${esc(key)}" aria-label="One more">+</button></span></td>`;
+    });
+    h+=`</tr>`;
+  }
+  $("craftTbl").innerHTML=h+"</tbody>";
+}
+function renderCraft(rs){
+  renderCraftFilters();
+  const w=workRows(rs); renderBring(w);
+  if(!w.length){ $("craftTbl").innerHTML=`<tr><td class="empty">${snap?"Nothing to do for this filter.":"Load a market CSV first."}</td></tr>`; return; }
+  $("vItem").setAttribute("aria-pressed",wView==="item"); $("vTier").setAttribute("aria-pressed",wView!=="item");
+  $("craftTbl").classList.toggle("byitem",wView==="item");
+  if(wView==="item") return renderCraftByItem(w);
+  const verb = wMode==="craft"?"Crafted":"Brought in";
+  const grpKey = x => wMode==="craft" && cStation==="All" ? x.it.s : "";
+  w.sort((a,b)=>stName(grpKey(a)).localeCompare(stName(grpKey(b))) || a.i-b.i || a.it.ord-b.it.ord || a.it.n.localeCompare(b.it.n));
+  let h=`<thead><tr><th>Item</th><th class="left">Left</th><th>${verb}</th><th class="stock">Listed / target</th></tr></thead><tbody>`;
+  let curG=null, curT=null;
+  for(const x of w){
+    const g=grpKey(x);
+    if(g!==curG){ curG=g; curT=null; if(g) h+=`<tr class="sth"><td colspan="4">${esc(stName(g))}</td></tr>`; }
+    if(x.i!==curT){ curT=x.i;
+      const inT=w.filter(y=>grpKey(y)===g && y.i===x.i); const l=inT.reduce((a,y)=>a+y.c.need,0);
+      const craftNote = wMode==="craft" ? ` · craft with <b>${esc(cfg.craft[x.i])}</b>`+(inT.some(y=>y.it.b==="Tools")?` (tools ${TIERS[x.i]}.0)`:"") : "";
+      h+=`<tr class="tierh"><td colspan="4"><span class="tier t${TIERS[x.i]}">T${TIERS[x.i]}</span> &nbsp;<b>${fmt(l)}</b> left${craftNote}</td></tr>`; }
+    const key=`${x.it.n}|${x.i}`;
+    h+=`<tr class="${x.c.need?"":"fin"}" data-row="${esc(key)}"><td class="item">${esc(x.it.n)}${x.it.a?`<small>${esc(artLabel(x.it))}</small>`:""}</td>
+      <td class="left" data-left="${esc(key)}">${x.c.need?fmt(x.c.need):"✓"}</td>
+      <td class="log"><span class="step"><button data-step="-1" data-key="${esc(key)}" aria-label="One fewer">−</button><input type="number" min="0" inputmode="numeric" data-done="${esc(x.it.n)}" data-i="${x.i}" value="${x.c.dn||""}" placeholder="0" aria-label="${esc(x.it.n)} T${TIERS[x.i]} ${verb.toLowerCase()}"><button data-step="1" data-key="${esc(key)}" aria-label="One more">+</button></span></td>
+      <td class="stock">${x.c.hv} / ${x.c.tg}</td></tr>`;
+  }
+  $("craftTbl").innerHTML=h+"</tbody>";
+}
+function render(){
+  const rs=rows();
+  renderSnap(); renderStats(rs); renderChips();
+  if(tab==="short"){ renderShort(rs); renderUnmatched(); }
+  if(tab==="mats") renderMats(rs);
+  if(tab==="craft" && !document.activeElement?.closest?.("#craftTbl")) renderCraft(rs);
+  if(tab==="targets" && !document.activeElement?.closest?.("#view-targets")) renderTargets();
+}
+
+/* ---------- persistence ---------- */
+let saveTimer=null, dirty=false;
+function setSave(t){ $("saveState").textContent=t; }
+function lsGet(k){ try{return JSON.parse(localStorage.getItem(k));}catch{return null;} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch{} }
+function scheduleSave(){
+  dirty=true; clearTimeout(saveTimer); setSave("Saving…");
+  saveTimer=setTimeout(async()=>{
+    lsSet("restock.cfg.v4",cfg);
+    if(cfgRef){ try{ await cfgRef.set(JSON.parse(JSON.stringify(cfg))); setSave("Targets saved for everyone"); }catch(e){ setSave("Saved on this device only. You can't change the shared targets."); } }
+    else setSave("Saved on this device");
+    dirty=false;
+  },700);
+}
+async function saveSnap(){
+  lsSet("restock.snap.v2",snap);
+  if(snapRef){ try{ await snapRef.set(snap); setSave("Export saved for everyone"); }catch(e){ setSave("Export loaded on this device only"); } }
+}
+function mergeCfg(d){ return Object.assign(structuredClone(DEFAULT_CFG), d||{}); }
+
+/* ---------- events ---------- */
+$("pick").onclick=()=>$("file").click();
+$("file").onchange=e=>{ const f=e.target.files[0]; if(f) loadFile(f); e.target.value=""; };
+const drop=$("drop");
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+function loadFile(f){
+  const r=new FileReader();
+  r.onload=()=>{ try{ snap=buildSnapshot(r.result,f.name); render(); saveSnap();
+      const n=Object.values(done).reduce((a,arr)=>a+arr.reduce((x,v)=>x+(+v||0),0),0);
+      if(n){ $("newExportText").textContent=`You loaded a new export. ${fmt(n)} items are still logged as crafted or brought in. If they're listed on the market now, clear the log so they aren't counted twice.`; $("newExportBanner").hidden=false; }
+    }catch(err){ setSave(err.message); } };
+  r.readAsText(f);
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{
+  tab=b.id.replace("tab-",""); document.querySelectorAll("nav.tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  ["short","craft","mats","targets"].forEach(v=>$("view-"+v).hidden=v!==tab); render();
+});
+$("stationChips").onclick=e=>{ const b=e.target.closest("[data-st]"); if(!b) return; station=b.dataset.st; if(tab==="targets") renderTargets(); render(); };
+$("q").oninput=e=>{ query=e.target.value; if(tab==="targets") renderTargets(); render(); };
+$("showAll").onchange=render;
+$("view-targets").addEventListener("input",e=>{
+  const el=e.target, i=+el.dataset.i;
+  if(el.id.startsWith("def-")) cfg.defaults[i]=el.value===""?0:+el.value;
+  else if(el.id.startsWith("craft-")) cfg.craft[i]=el.value;
+  else if(el.id==="rrr") cfg.rrr=+el.value||0;
+  else if(el.dataset.level){ const store = el.dataset.level==="category" ? (cfg.category ||= {}) : cfg[el.dataset.level]; const name=el.dataset.key;
+    const arr=(store[name] ||= [null,null,null,null]); arr[i]=el.value===""?null:+el.value;
+    if(arr.every(v=>v===null)) delete store[name];
+    el.classList.toggle("set", el.value!==""); }
+  scheduleSave(); render();
+});
+$("view-targets").addEventListener("focusout",()=>setTimeout(()=>{ if(!document.activeElement?.closest?.("#view-targets")) renderTargets(); },0));
+$("view-targets").addEventListener("click",e=>{
+  const t=e.target.closest("[data-tog]"); if(t){ const b=t.dataset.tog; openBr.has(b)?openBr.delete(b):openBr.add(b); renderTargets(); return; }
+  const c=e.target.closest("[data-clear]"); if(c){ const store=c.dataset.clear==="category"?(cfg.category||={}):cfg[c.dataset.clear]; delete store[c.dataset.key]; scheduleSave(); renderTargets(); render(); }
+});
+$("expandAll").onclick=()=>{ ITEMS.forEach(i=>openBr.add(i.b)); renderTargets(); };
+$("collapseAll").onclick=()=>{ openBr.clear(); renderTargets(); };
+$("resetOv").onclick=()=>{$("resetConfirm").hidden=false;};
+$("resetNo").onclick=()=>{$("resetConfirm").hidden=true;};
+$("resetYes").onclick=()=>{ cfg=structuredClone(DEFAULT_CFG); $("resetConfirm").hidden=true; renderTargets(); scheduleSave(); render(); };
+async function copy(text,btn){ const old=btn.textContent; try{ await navigator.clipboard.writeText(text); btn.textContent="Copied"; }catch{ btn.textContent="Copy blocked"; } setTimeout(()=>btn.textContent=old,1500); }
+$("copyShort").onclick=e=>{
+  const rs=rows().filter(r=>r.need); const lines=[`Hideout restock, export ${snap?.exportedAt||""}`];
+  let cur=null; for(const r of rs.sort((a,b)=>a.it.ord-b.it.ord||a.it.n.localeCompare(b.it.n))){
+    if(r.it.g!==cur){cur=r.it.g; lines.push("",`## ${GNAME[cur]}`);}
+    lines.push(`${r.it.n}${r.it.tr?" (haul in)":""}: `+r.cells.map((c,i)=>c.need?`T${TIERS[i]}×${c.need}`:"").filter(Boolean).join(", "));
+  } copy(lines.join("\n"),e.target);
+};
+$("copyMats").onclick=e=>{
+  const {mats,arts}=materials(rows()); const lines=["Materials to craft restock:"];
+  for(const m of MATS) if(mats[m]) lines.push(`${m}: `+Object.keys(mats[m]).sort().map(t=>`${t} ×${Math.ceil(mats[m][t])}`).join(", "));
+  const ak=Object.keys(arts).sort(); if(ak.length){ lines.push("","Artifacts:"); ak.forEach(k=>lines.push(`${k}${AV_ARTS.has(k)?" (or Crystallized Divinity)":""}: `+Object.keys(arts[k]).sort().map(t=>`${t} ×${arts[k][t]}`).join(", "))); }
+  copy(lines.join("\n"),e.target);
+};
+
+/* ---------- crafted log ---------- */
+let craftCol=null; const doneTimers={};
+const docId = n => norm(n) || "x";
+function saveDone(name){
+  clearTimeout(doneTimers[name]); setSave("Saving…");
+  doneTimers[name]=setTimeout(async()=>{
+    lsSet("restock.done",done);
+    const arr=done[name]; const empty=!arr||arr.every(v=>!v);
+    if(craftCol){ try{ const ref=craftCol.doc(docId(name)); if(empty) await ref.delete(); else await ref.set({n:name,c:arr.map(v=>+v||0),at:new Date().toISOString()}); setSave("Log saved for everyone"); }catch(e){ setSave("Log saved on this device only"); } }
+    else setSave("Log saved on this device");
+    delete doneTimers[name];
+  },600);
+}
+function refreshCraftLive(){
+  const rs=rows(); renderStats(rs); const w=workRows(rs); renderBring(w);
+  w.forEach(x=>{ const key=`${x.it.n}|${x.i}`; const el=document.querySelector(`[data-left="${CSS.escape(key)}"]`);
+    if(el){ el.textContent=x.c.need?fmt(x.c.need):"✓"; el.classList.toggle("zero",!x.c.need); if(wView!=="item") el.closest("tr").classList.toggle("fin",!x.c.need); } });
+}
+function setDone(name,i,val){
+  const arr=(done[name] ||= [0,0,0,0]); arr[i]=Math.max(0,val|0);
+  if(arr.every(v=>!v)) delete done[name];
+  saveDone(name); refreshCraftLive();
+}
+$("craftTbl").addEventListener("input",e=>{ const el=e.target; if(!el.dataset.done) return; setDone(el.dataset.done,+el.dataset.i,+el.value||0); });
+$("craftTbl").addEventListener("click",e=>{ const b=e.target.closest("[data-step]"); if(!b) return;
+  const [name,i]=[b.dataset.key.slice(0,b.dataset.key.lastIndexOf("|")), +b.dataset.key.split("|").pop()];
+  const inp=b.parentElement.querySelector("input"); const v=Math.max(0,(+inp.value||0)+ +b.dataset.step); inp.value=v||""; setDone(name,i,v); });
+$("craftTbl").addEventListener("focusout",()=>setTimeout(()=>{ if(!document.activeElement?.closest?.("#craftTbl")) render(); },0));
+["cStation","cArt","cRes","hType"].forEach(id=>$(id).onchange=e=>{ const v=e.target.value; ({cStation:()=>cStation=v,cArt:()=>cArt=v,cRes:()=>cRes=v,hType:()=>hType=v})[id](); render(); });
+$("mCraft").onclick=()=>{ wMode="craft"; render(); };
+$("mHaul").onclick=()=>{ wMode="haul"; render(); };
+$("vItem").onclick=()=>{ wView="item"; lsSet("restock.wview","item"); render(); };
+$("vTier").onclick=()=>{ wView="tier"; lsSet("restock.wview","tier"); render(); };
+async function clearDoneAll(){
+  done={}; lsSet("restock.done",done); render();
+  if(craftCol){ try{ const all=await craftCol.get(); for(const d of all.docs) await craftCol.doc(d.id).delete(); setSave("Log cleared"); }catch(e){ setSave("Couldn't clear the shared log"); } }
+}
+$("clearDone").onclick=()=>{$("clearConfirm").hidden=false;};
+$("clearNo").onclick=()=>{$("clearConfirm").hidden=true;};
+$("clearYes").onclick=()=>{$("clearConfirm").hidden=true; clearDoneAll();};
+$("newClear").onclick=()=>{$("newExportBanner").hidden=true; clearDoneAll();};
+$("newKeep").onclick=()=>{$("newExportBanner").hidden=true;};
+$("copyCraft").onclick=e=>{
+  const w=workRows(rows()).filter(x=>x.c.need); const lines=[];
+  if(wMode==="craft"){ lines.push(`Craft at ${cStation==="All"?"all stations":stName(cStation)}`);
+    const {mats,arts}=materials(rowsFromWork(w));
+    for(const m of MATS) if(mats[m]) lines.push(`${m}: `+Object.keys(mats[m]).sort().map(t=>`${t} ×${Math.ceil(mats[m][t])}`).join(", "));
+    Object.keys(arts).sort().forEach(k=>lines.push(`${k}${AV_ARTS.has(k)?" (or Crystallized Divinity)":""}: `+Object.keys(arts[k]).sort().map(t=>`${t} ×${arts[k][t]}`).join(", ")));
+    lines.push(""); } else lines.push("Bring in","");
+  w.forEach(x=>lines.push(`T${TIERS[x.i]} ${x.it.n} ×${x.c.need}`));
+  copy(lines.join("\n"),e.target);
+};
+
+/* ---------- theme ---------- */
+function applyTheme(light){ document.documentElement.classList.toggle("light",light); $("themeBtn").textContent=light?"Dark mode":"Light mode"; $("themeBtn").setAttribute("aria-pressed",light); }
+applyTheme(lsGet("restock.theme")==="light");
+$("themeBtn").onclick=()=>{ const light=!document.documentElement.classList.contains("light"); applyTheme(light); lsSet("restock.theme",light?"light":"dark"); };
+
+/* ---------- boot ---------- */
+cfg=mergeCfg(lsGet("restock.cfg.v4")); snap=lsGet("restock.snap.v2"); done=lsGet("restock.done")||{};
+render();
+(async()=>{
+  try{ db = window.claude?.use ? await window.claude.use("db") : null; }catch{ db=null; }
+  if(!db){ setSave("Changes stay on this device"); return; }
+  cfgRef=db.doc("config/targets-v4"); snapRef=db.doc("snapshots/latest");
+  cfgRef.onSnapshot(s=>{ if(dirty) return; if(s.exists){ cfg=mergeCfg(s.data()); lsSet("restock.cfg.v4",cfg); render(); if(tab==="targets"&&!document.activeElement?.closest?.("#view-targets")) renderTargets(); } },()=>{});
+  craftCol=db.collection("crafted");
+  craftCol.onSnapshot(q=>{
+    const next={}; q.docs.forEach(d=>{ const v=d.data(); if(v&&v.n) next[v.n]=v.c; });
+    for(const n in doneTimers) if(done[n]) next[n]=done[n]; else delete next[n];
+    done=next; lsSet("restock.done",done);
+    if(document.activeElement?.closest?.("#craftTbl")) refreshCraftLive(); else render();
+  },()=>{});
+  snapRef.onSnapshot(s=>{ if(s.exists){ snap=s.data(); lsSet("restock.snap.v2",snap); render(); } },()=>{});
+})();
+</script>
+
+</body></html>
