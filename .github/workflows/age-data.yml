@@ -1,0 +1,68 @@
+# Rebuilds age/data.json (the /age structure-ID curve) from EVE Ref every day and commits it to main.
+# GitHub Pages ("Deploy from a branch") then republishes the site as usual.
+# The first run downloads EVE Ref's yearly archives (~2.5 GB, ~15 min); later runs only fetch new days.
+name: Structure age data
+
+on:
+  schedule:
+    - cron: "17 9 * * *" # daily, after EVE Ref's morning snapshots
+  push:
+    branches: [main]
+    paths: ["pipeline/**", ".github/workflows/age-data.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: age-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install orjson==3.10.7
+
+      # The extractor resumes from its state files, so a warm cache only fetches new days.
+      - name: Restore extractor state
+        uses: actions/cache/restore@v4
+        with:
+          path: pipeline/state-*.json
+          key: everef-state-${{ github.run_id }}
+          restore-keys: everef-state-
+
+      - name: Fetch EVE Ref snapshots
+        working-directory: pipeline
+        run: |
+          for y in 2023 2024 2025; do STATE=state-$y.json python3 extract_first_seen.py $y; done
+          YEAR=$(date -u +%Y)
+          STATE=state-$YEAR.json python3 extract_first_seen.py $YEAR
+
+      - name: Save extractor state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: pipeline/state-*.json
+          key: everef-state-${{ github.run_id }}
+
+      - name: Rebuild curve and page data
+        working-directory: pipeline
+        run: |
+          python3 build_curve.py
+          python3 export_web.py knots.json ../age/data.json
+
+      - name: Commit data if it changed
+        run: |
+          git add age/data.json
+          if git diff --cached --quiet; then echo "No change"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Refresh structure age data"
+          git push
