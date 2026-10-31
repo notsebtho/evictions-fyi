@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Structure Age</title>
+<meta name="description" content="Estimate when an EVE Online Upwell structure was anchored from its ID. Paste a show-info link.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script>try{if(localStorage.getItem("efyi-theme")==="light")document.documentElement.classList.add("light")}catch(e){}</script>
+<style>
+:root{
+  --bg:#2a2a2a; --panel:#333333; --sunk:#3b3b3b; --line:#484848; --fg:#ececec; --muted:#a6a6a6;
+  --accent:#8ab4f0; --accent-fg:#1c1c1c; --warn:#f0a35e; --warn-bg:#4a3626; --ok:#7fcf8c; --curve:#8ab4f0; --band:rgba(138,180,240,.16);
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+:root.light{
+  --bg:#f2f2f2; --panel:#ffffff; --sunk:#e8e8e8; --line:#d4d4d4; --fg:#1f1f1f; --muted:#616161;
+  --accent:#2f62a8; --accent-fg:#ffffff; --warn:#b4540f; --warn-bg:#fbeadb; --ok:#2f7d4a; --curve:#2f62a8; --band:rgba(47,98,168,.12);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+.wrap>*{min-width:0}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:30px;line-height:1.05}
+h2{font-size:20px}
+h3{font-size:16px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+p{margin:0}
+.muted{color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.snap{font-size:13px;color:var(--muted)}
+.snap b{color:var(--fg);font-weight:600}
+button{font:600 13px var(--body);border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 12px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button:hover{border-color:var(--accent)}
+button:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.input{padding:14px 16px;display:grid;gap:10px}
+textarea{width:100%;min-height:84px;resize:vertical;font:13px/1.5 var(--mono);background:var(--sunk);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+textarea::placeholder{color:var(--muted);opacity:.8}
+.row{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.row .grow{flex:1 1 220px;min-width:0}
+.legend{font-size:12px;color:var(--muted)}
+.err{color:var(--warn)}
+/* single result */
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:0}
+@media (max-width:760px){.hero{grid-template-columns:minmax(0,1fr)}}
+.hero>div{padding:16px 18px;min-width:0}
+.hero>div+div{border-left:1px solid var(--line)}
+@media (max-width:760px){.hero>div+div{border-left:0;border-top:1px solid var(--line)}}
+.sname{font:700 22px var(--display);letter-spacing:.01em;overflow-wrap:anywhere}
+.stype{color:var(--muted);font-size:13px}
+.big{font:600 34px/1.1 var(--mono);font-variant-numeric:tabular-nums;margin-top:12px}
+.sub{font-size:13px;color:var(--muted);margin-top:4px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.badge{display:inline-block;font:600 11px var(--body);text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.exact{border-color:var(--ok);color:var(--ok)}
+.badge.bound,.badge.proj{border-color:var(--warn);color:var(--warn)}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+/* multi result */
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--sunk)}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+td .s{display:block;color:var(--muted);font-size:12px}
+td.name{white-space:normal;min-width:180px}
+/* chart */
+.chart{padding:14px 16px 10px;display:grid;gap:6px}
+.chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart .ax{font:11px var(--mono);fill:var(--muted)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .curve{fill:none;stroke:var(--curve);stroke-width:2}
+.chart .mk{fill:var(--warn);stroke:var(--panel);stroke-width:2}
+.chart .mkl{font:600 11px var(--mono);fill:var(--fg)}
+details.how{padding:0}
+details.how>summary{padding:12px 16px;cursor:pointer;font:700 17px var(--display);letter-spacing:.03em}
+details.how>div{padding:0 16px 16px;display:grid;gap:10px;max-width:78ch}
+details.how ul{margin:0;padding-left:18px;display:grid;gap:4px}
+footer{font-size:12px;color:var(--muted)}
+footer a,details.how a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Structure Age</h1>
+      <div class="snap" id="snap">Loading the ID curve…</div>
+    </div>
+    <div class="row"><button id="themeBtn" aria-pressed="false">Light mode</button></div>
+  </header>
+
+  <form class="panel input" id="form">
+    <label for="q"><b>Paste show-info links or structure IDs.</b> <span class="muted">One or many. Drag the structure from your overview or locator into chat, then copy the link.</span></label>
+    <textarea id="q" spellcheck="false" autocomplete="off" placeholder="<url=showinfo:35832//1045000000000>J123456 - Home</url>&#10;1046400861408"></textarea>
+    <div class="row">
+      <span class="grow legend" id="status">Estimates use when nearby IDs were first seen. They are not confirmed anchor dates.</span>
+      <button type="button" id="clear">Clear</button>
+      <button type="submit" class="primary" id="go" disabled>Estimate</button>
+    </div>
+  </form>
+
+  <section id="out" hidden></section>
+
+  <section class="panel chart" id="chartBox" hidden>
+    <h3>Where it sits on the ID curve</h3>
+    <div id="chart"></div>
+    <div class="legend">The line is the highest structure ID known to exist on each day. Dots are your structures.</div>
+  </section>
+
+  <details class="panel how">
+    <summary>How the estimate works</summary>
+    <div>
+      <p>EVE hands out item IDs in increasing order, so a newer structure has a higher ID. EVE Ref has logged every structure it can see several times a day, and its records go back to November 2016. That gives a first-seen date for about <span id="nIds">60,000</span> IDs.</p>
+      <p>A first sighting can only be late, never early. So a structure was anchored no later than the first sightings of the IDs above it. The curve takes the fifth-earliest of those sightings rather than the earliest, because IDs are allocated in blocks and the odd higher ID really is a little older than its neighbours.</p>
+      <ul>
+        <li><span class="badge exact">Seen</span> This ID was itself sighted, and its own sighting agrees with its neighbours.</li>
+        <li><span class="badge">Between neighbours</span> Placed between the nearest days on the curve.</li>
+        <li><span class="badge bound">Before Nov 2016</span> Older than the data. Only a "no later than" date is possible.</li>
+        <li><span class="badge proj">Projected</span> Newer than anything sighted yet. Projected from the recent rate of new IDs.</li>
+      </ul>
+      <p>The range starts two days before the earlier neighbour, to allow for the 24-hour anchor timer and the delay before a structure is first seen.</p>
+    </div>
+  </details>
+
+  <footer>Data: <a href="https://data.everef.net/structures/history/" rel="noopener">EVE Ref structure history</a>, refreshed daily. EVE Online and all related marks are property of CCP hf.</footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY = 86400000,LAG_PAD = 2, TAIL_WINDOW = 60, TAIL_MAX = 45;
+const TYPES = {35825:"Raitaru",35826:"Azbel",35827:"Sotiyo",35832:"Astrahus",35833:"Fortizar",35834:"Keepstar",
+  35835:"Athanor",35836:"Tatara",35840:"Pharolux Cyno Beacon",35841:"Ansiblex Jump Bridge",37534:"Tenebrex Cyno Jammer",
+  40340:"Upwell Palatinate Keepstar",47512:"'Moreau' Fortizar",47513:"'Draccous' Fortizar",47514:"'Horizon' Fortizar",
+  47515:"'Marginis' Fortizar",47516:"'Prometheus' Fortizar",81826:"Metenox Moon Drill"};
+
+/* ---------- theme ---------- */
+const root = document.documentElement, themeBtn = $("themeBtn");
+const syncTheme = () => { const l = root.classList.contains("light"); themeBtn.textContent = l ? "Dark mode" : "Light mode"; themeBtn.setAttribute("aria-pressed", String(l)); };
+themeBtn.onclick = () => { root.classList.toggle("light"); try { localStorage.setItem("efyi-theme", root.classList.contains("light") ? "light" : "dark"); } catch (e) {} syncTheme(); if (last) render(last); };
+syncTheme();
+
+/* ---------- data ---------- */
+let C = null, last = null;
+function undelta(a) { const o = new Array(a.length); let p = 0; for (let i = 0; i < a.length; i++) { p += a[i]; o[i] = p; } return o; }
+function lowerBound(arr, x) { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < x) lo = m + 1; else hi = m; } return lo; }
+// Python's round(): halves go to the even neighbour. Keeps results identical to estimate.py.
+function pyRound(x) { const f = Math.floor(x), d = x - f; if (d > 0.5) return f + 1; if (d < 0.5) return f; return f % 2 === 0 ? f : f + 1; }
+
+fetch("data.json", { cache: "no-cache" }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+  const base = Date.parse(d.base + "T00:00:00Z");
+  C = { base, days: undelta(d.k.d), hi: undelta(d.k.h), rid: undelta(d.r.i), rd: d.r.d, built: d.built, n: d.n };
+  C.maxId = C.hi[C.hi.length - 1];
+  $("snap").innerHTML = `<b class="num">${d.n.toLocaleString("en-US")}</b> structures tracked since ${fmt(0, "month")} · data to <b>${fmt(C.days[C.days.length - 1])}</b>`;
+  $("nIds").textContent = d.n.toLocaleString("en-US");
+  $("go").disabled = false;
+  const qs = new URLSearchParams(location.search).get("q");
+  if (qs) { $("q").value = qs.split(",").join("\n"); run(); }
+}).catch(() => { $("snap").innerHTML = `<span class="err">Couldn't load the ID curve. Try reloading.</span>`; });
+
+/* ---------- estimator (port of pipeline/estimate.py) ---------- */
+function estimate(sid) {
+  const { days, hi } = C;
+  if (sid > C.maxId) return tail(sid);
+  const i = lowerBound(hi, sid);
+  let end = days[i];
+  if (end <= 0) return { method: "extrapolate-head", end };
+  let prevDay = i ? days[i - 1] : end;
+  const prevHi = i ? hi[i - 1] : sid;
+  const span = end - prevDay;
+  const frac = (sid - prevHi) / Math.max(1, hi[i] - prevHi);
+  let mid = span ? prevDay + pyRound(span * frac) : end;
+  let method = "interpolate";
+  const j = lowerBound(C.rid, sid);
+  if (C.rid[j] === sid && C.rd[j] <= end) { method = "exact"; end = C.rd[j]; mid = Math.min(mid, end); prevDay = Math.min(prevDay, end); }
+  const start = prevDay - LAG_PAD;
+  return { method, mid, start, end };
+}
+function tail(sid) {
+  const { days, hi } = C, n = days.length, lastDay = days[n - 1], lastHi = hi[n - 1];
+  const j = lowerBound(days, lastDay - TAIL_WINDOW), dd = lastDay - days[j];
+  const rate = dd ? (hi[n - 1] - hi[j]) / dd : 0;
+  if (rate <= 0) return { method: "unknown" };
+  const ahead = (sid - lastHi) / rate;
+  if (ahead > TAIL_MAX) return { method: "unknown", why: "far" };
+  const mid = lastDay + pyRound(ahead);
+  return { method: "extrapolate-tail", mid, start: lastDay, end: mid + 3 };
+}
+
+/* ---------- parsing ---------- */
+function parse(text) {
+  const out = [], seen = new Set();
+  const add = (id, typeId, name) => { if (seen.has(id)) return; seen.add(id); out.push({ id, typeId, name }); };
+  const link = /showinfo:(\d+)\/\/(\d+)(?:[^>]*>([^<]*))?/g;
+  let m;
+  while ((m = link.exec(text))) add(Number(m[2]), Number(m[1]), (m[3] || "").trim() || null);
+  const rest = text.replace(link, " ");
+  const bare = /(?<!\d)(\d{13})(?!\d)/g;
+  while ((m = bare.exec(rest))) add(Number(m[1]), null, null);
+  const bad = (rest.match(/(?<!\d)\d{6,12}(?!\d)|(?<!\d)\d{14,}(?!\d)/g) || []).length;
+  return { items: out, bad };
+}
+
+/* ---------- formatting ---------- */
+function fmt(dayOff, mode) {
+  const d = new Date(C.base + dayOff * DAY), M = MONTHS[d.getUTCMonth()], Y = d.getUTCFullYear();
+  return mode === "month" ? `${M} ${Y}` : `${d.getUTCDate()} ${M} ${Y}`;
+}
+function todayOff() { return Math.floor((Date.now() - C.base) / DAY); }
+function ageText(dayOff) {
+  const days = todayOff() - dayOff;
+  if (days < 0) return "not yet";
+  if (days < 60) return days === 1 ? "1 day" : `${days} days`;
+  const months = Math.floor(days / 30.44);
+  if (months < 24) return `${months} months`;
+  const y = Math.floor(months / 12), mo = months % 12;
+  return mo ? `${y} yr ${mo} mo` : `${y} years`;
+}
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const BADGE = {
+  "exact": ['<span class="badge exact">Seen</span>', "This ID was itself sighted, and its own sighting agrees with its neighbours."],
+  "interpolate": ['<span class="badge">Between neighbours</span>', "Placed between the nearest days on the ID curve."],
+  "extrapolate-head": ['<span class="badge bound">Before Nov 2016</span>', "Older than the data, so this is an upper bound only."],
+  "extrapolate-tail": ['<span class="badge proj">Projected</span>', "Newer than any sighted ID. Projected from the recent rate of new IDs."],
+  "unknown": ['<span class="badge">Unknown</span>', ""],
+};
+function headline(e) {
+  if (e.method === "extrapolate-head") return { big: `≤ ${fmt(e.end)}`, sub: `Anchored on or before this date · over ${ageText(e.end)} old` };
+  if (e.method === "unknown") return { big: "Unknown", sub: e.why === "far" ? "This ID is well beyond anything sighted so far. Check it's a real structure ID." : "" };
+  return { big: fmt(e.mid), sub: `About ${ageText(e.mid)} old` };
+}
+function range(e) { return e.start == null ? "—" : `${fmt(e.start)} – ${fmt(e.end)}`; }
+function label(it) {
+  const type = it.typeId ? (TYPES[it.typeId] || `Type ${it.typeId}`) : null;
+  const sys = it.name && /^([A-Z0-9-]{3,8})\s+-\s/.test(it.name) ? it.name.split(" - ")[0] : null;
+  return { title: it.name || type || "Unnamed structure", type: it.name ? type : null, sys };
+}
+
+/* ---------- render ---------- */
+function run() {
+  if (!C) return;
+  const { items, bad } = parse($("q").value);
+  const st = $("status");
+  if (!items.length) {
+    $("out").hidden = $("chartBox").hidden = true; last = null;
+    st.innerHTML = `<span class="err">No structure ID found. Paste a show-info link or a 13-digit ID like 1045000000000.</span>`;
+    return;
+  }
+  st.innerHTML = bad ? `<span class="err">Skipped ${bad} number${bad > 1 ? "s" : ""} that ${bad > 1 ? "aren't" : "isn't"} a structure ID.</span>` : `Estimates use when nearby IDs were first seen. They are not confirmed anchor dates.`;
+  const res = items.map(it => ({ ...it, e: estimate(it.id) }));
+  last = res;
+  render(res);
+  try { const u = new URL(location.href); u.searchParams.set("q", items.map(i => i.id).join(",")); history.replaceState(null, "", u); } catch (e) {}
+}
+function render(res) {
+  const out = $("out");
+  out.hidden = false;
+  if (res.length === 1) {
+    const r = res[0], h = headline(r.e), l = label(r), b = BADGE[r.e.method];
+    out.innerHTML = `<div class="panel hero">
+      <div>
+        <div class="sname">${esc(l.title)}</div>
+        <div class="stype">${[l.type, l.sys].filter(Boolean).map(esc).join(" · ") || "&nbsp;"}</div>
+        <div class="big">${h.big}</div>
+        <div class="sub">${h.sub}</div>
+      </div>
+      <div>
+        <dl class="kv">
+          <dt>Range</dt><dd>${range(r.e)}</dd>
+          <dt>Basis</dt><dd>${b[0]}</dd>
+          <dt>Structure ID</dt><dd>${r.id}</dd>
+        </dl>
+        <p class="note">${b[1]}</p>
+      </div></div>`;
+  } else {
+    const rows = res.map((r, k) => { const h = headline(r.e), l = label(r);
+      return `<tr><td class="n muted">${k + 1}</td><td class="name">${esc(l.title)}<span class="s">${[l.type, l.sys].filter(Boolean).map(esc).join(" · ")}</span></td>
+        <td class="n">${h.big}</td><td class="n">${r.e.mid != null ? ageText(r.e.mid) : r.e.method === "extrapolate-head" ? "over " + ageText(r.e.end) : "—"}</td>
+        <td class="n">${range(r.e)}</td><td>${BADGE[r.e.method][0]}</td><td class="n">${r.id}</td></tr>`; }).join("");
+    out.innerHTML = `<div class="panel scroll"><table><thead><tr><th>#</th><th>Structure</th><th>Anchored</th><th>Age</th><th>Range</th><th>Basis</th><th>ID</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  drawChart(res);
+}
+function drawChart(res) {
+  $("chartBox").hidden = false; // must be visible before measuring
+  // Size the viewBox to the real width so labels stay at 11px on phones.
+  const W = Math.max(300, Math.round($("chart").clientWidth || 800)), H = W < 560 ? 200 : 240, L = 8, R = 14, T = 14, B = 24;
+  const { days, hi } = C, n = days.length;
+  const ends = res.map(r => r.e.end).filter(v => v != null);
+  const x0 = 0, x1 = Math.max(days[n - 1], ...ends);
+  const y0 = 1.02e12, y1 = Math.max(C.maxId, ...res.filter(r => r.e.method !== "unknown").map(r => r.id));
+  const X = d => L + (d - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => T + (1 - (Math.max(v, y0) - y0) / (y1 - y0)) * (H - T - B);
+  let path = "", step = Math.max(1, Math.floor(n / 400));
+  for (let i = 0; i < n; i += step) path += (path ? "L" : "M") + X(days[i]).toFixed(1) + "," + Y(hi[i]).toFixed(1);
+  path += "L" + X(days[n - 1]).toFixed(1) + "," + Y(hi[n - 1]).toFixed(1);
+  let grid = "";
+  const startY = new Date(C.base).getUTCFullYear() + 1, endY = new Date(C.base + x1 * DAY).getUTCFullYear();
+  for (let yr = startY; yr <= endY; yr++) {
+    const d = (Date.UTC(yr, 0, 1) - C.base) / DAY, x = X(d);
+    grid += `<line class="grid" x1="${x}" x2="${x}" y1="${T}" y2="${H - B}"/>`;
+    if ((W >= 560 && endY - startY < 8) || yr % 2 === 0) grid += `<text class="ax" x="${x}" y="${H - 6}" text-anchor="middle">${yr}</text>`;
+  }
+  let mk = "";
+  const placed = [];
+  res.forEach((r, k) => {
+    const d = r.e.mid != null ? r.e.mid : r.e.end; if (d == null) return;
+    const cx = X(Math.min(d, x1)), cy = Y(r.id);
+    if (r.e.start != null) mk += `<rect x="${X(r.e.start)}" y="${T}" width="${Math.max(2, X(r.e.end) - X(r.e.start))}" height="${H - T - B}" fill="var(--band)"/>`;
+    mk += `<circle class="mk" cx="${cx}" cy="${cy}" r="5"><title>${esc(label(r).title)}: ${headline(r.e).big}</title></circle>`;
+    if (res.length > 1 && res.length <= 12) {
+      const right = cx > W - 40, lx = cx + (right ? -9 : 9);
+      let ly = cy - 7;
+      while (placed.some(p => Math.abs(p[0] - lx) < 16 && Math.abs(p[1] - ly) < 13)) ly += 13;
+      placed.push([lx, ly]);
+      mk += `<text class="mkl" x="${lx}" y="${ly}" text-anchor="${right ? "end" : "start"}">${k + 1}</text>`;
+    }
+  });
+  $("chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Structure ID against first-seen date">${grid}${mk}<path class="curve" d="${path}"/></svg>`;
+  $("chartBox").hidden = false;
+}
+
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (last) drawChart(last); }, 150); });
+$("form").addEventListener("submit", (ev) => { ev.preventDefault(); run(); });
+$("q").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); run(); } });
+$("q").addEventListener("paste", () => setTimeout(run, 0));
+$("clear").onclick = () => { $("q").value = ""; $("out").hidden = $("chartBox").hidden = true; last = null; try { history.replaceState(null, "", location.pathname); } catch (e) {} $("q").focus(); };
+})();
+</script>
+</body>
+</html>
